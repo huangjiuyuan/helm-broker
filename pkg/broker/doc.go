@@ -1,10 +1,9 @@
-// Package broker holds the code that users of the skeleton write for their
-// broker. To make a broker, fill out:
+// Package broker holds the code for a broker:
 //
 // - The Options type, which holds options for the broker
 // - The AddFlags function, which adds CLI flags for an Options
-// - The methods of the BusinessLogic type, which implements the broker's
+// - The methods of the HelmBroker type, which implements the broker's
 //   business logic
-// - The NewBusinessLogic function, which creates a BusinessLogic from the
+// - The NewHelmBroker function, which creates a HelmBroker from the
 //   Options the program is run with
-package broker // import "github.com/pmorie/osb-starter-pack/pkg/broker"
+package broker // import "github.com/huangjiuyuan/helm-broker/pkg/broker"

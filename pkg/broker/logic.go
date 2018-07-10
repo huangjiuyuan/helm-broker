@@ -1,32 +1,32 @@
 package broker
 
 import (
+	"fmt"
 	"net/http"
+	"reflect"
 	"sync"
 
 	"github.com/golang/glog"
-	"github.com/pmorie/osb-broker-lib/pkg/broker"
-
+	"github.com/huangjiuyuan/helm-broker/pkg/helm"
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
-	"reflect"
+	"github.com/pmorie/osb-broker-lib/pkg/broker"
 )
 
-// NewBusinessLogic is a hook that is called with the Options the program is run
-// with. NewBusinessLogic is the place where you will initialize your
-// BusinessLogic the parameters passed in.
-func NewBusinessLogic(o Options) (*BusinessLogic, error) {
-	// For example, if your BusinessLogic requires a parameter from the command
+// NewHelmBroker is a hook that is called with the Options the program is run
+// with. NewHelmBroker is the place where you will initialize your
+// HelmBroker the parameters passed in.
+func NewHelmBroker(o Options) (*HelmBroker, error) {
+	// For example, if your HelmBroker requires a parameter from the command
 	// line, you would unpack it from the Options and set it on the
-	// BusinessLogic here.
-	return &BusinessLogic{
+	// HelmBroker here.
+	return &HelmBroker{
 		async:     o.Async,
 		instances: make(map[string]*exampleInstance, 10),
 	}, nil
 }
 
-// BusinessLogic provides an implementation of the broker.BusinessLogic
-// interface.
-type BusinessLogic struct {
+// HelmBroker provides an implementation of the broker.Interface.
+type HelmBroker struct {
 	// Indicates if the broker should handle the requests asynchronously.
 	async bool
 	// Synchronize go routines.
@@ -35,68 +35,73 @@ type BusinessLogic struct {
 	instances map[string]*exampleInstance
 }
 
-var _ broker.Interface = &BusinessLogic{}
+var _ broker.Interface = &HelmBroker{}
 
-func truePtr() *bool {
-	b := true
-	return &b
-}
+// GetCatalog encapsulates the business logic for returning the broker's catalog of services.
+func (b *HelmBroker) GetCatalog(c *broker.RequestContext) (*broker.CatalogResponse, error) {
+	hc := helm.NewClient(":44134", "$HOME/.helm")
+	releases, err := hc.SearchReleases()
+	if err != nil {
+		glog.Errorf("failed to get releases from Chart repositories")
+	}
 
-func (b *BusinessLogic) GetCatalog(c *broker.RequestContext) (*broker.CatalogResponse, error) {
-	// Your catalog business logic goes here
 	response := &broker.CatalogResponse{}
-	osbResponse := &osb.CatalogResponse{
-		Services: []osb.Service{
-			{
-				Name:          "example-starter-pack-service",
-				ID:            "4f6e6cf6-ffdd-425f-a2c7-3c9258ad246a",
-				Description:   "The example service from the osb starter pack!",
-				Bindable:      true,
-				PlanUpdatable: truePtr(),
-				Metadata: map[string]interface{}{
-					"displayName": "Example starter pack service",
-					"imageUrl":    "https://avatars2.githubusercontent.com/u/19862012?s=200&v=4",
-				},
-				Plans: []osb.Plan{
-					{
-						Name:        "default",
-						ID:          "86064792-7ea2-467b-af93-ac9694d96d5b",
-						Description: "The default plan for the starter pack example service",
-						Free:        truePtr(),
-						Schemas: &osb.Schemas{
-							ServiceInstance: &osb.ServiceInstanceSchema{
-								Create: &osb.InputParametersSchema{
-									Parameters: map[string]interface{}{
-										"type": "object",
-										"properties": map[string]interface{}{
-											"color": map[string]interface{}{
-												"type":    "string",
-												"default": "Clear",
-												"enum": []string{
-													"Clear",
-													"Beige",
-													"Grey",
-												},
-											},
-										},
-									},
+	services := make([]osb.Service, len(releases), len(releases))
+	for idx, release := range releases {
+		service := osb.Service{
+			Name:        release.Name,
+			ID:          release.Chart.Digest,
+			Description: release.Chart.Description,
+			Bindable:    true,
+			Metadata: map[string]interface{}{
+				"name":          release.Chart.Name,
+				"home":          release.Chart.Home,
+				"sources":       release.Chart.Sources,
+				"version":       release.Chart.Version,
+				"description":   release.Chart.Description,
+				"keywords":      release.Chart.Keywords,
+				"maintainers":   release.Chart.Maintainers,
+				"engine":        release.Chart.Engine,
+				"apiVersion":    release.Chart.ApiVersion,
+				"condition":     release.Chart.Condition,
+				"tags":          release.Chart.Tags,
+				"appVersion":    release.Chart.AppVersion,
+				"deprecated":    release.Chart.Deprecated,
+				"tillerVersion": release.Chart.TillerVersion,
+				"annotations":   release.Chart.Annotations,
+			},
+			Plans: []osb.Plan{
+				{
+					Name:        "default",
+					ID:          "0",
+					Description: fmt.Sprintf("The default plan for %s service.", release.Chart.Name),
+					Free:        func() *bool { b := true; return &b }(),
+					Schemas: &osb.Schemas{
+						ServiceInstance: &osb.ServiceInstanceSchema{
+							Create: &osb.InputParametersSchema{
+								Parameters: map[string]string{
+									"name":    release.Name,
+									"version": release.Chart.Version,
 								},
 							},
 						},
 					},
 				},
 			},
-		},
+		}
+		services[idx] = service
+	}
+	osbResponse := &osb.CatalogResponse{
+		Services: services,
 	}
 
-	glog.Infof("catalog response: %#+v", osbResponse)
-
+	glog.Infof("catalog response: %#+v.", osbResponse)
 	response.CatalogResponse = *osbResponse
 
 	return response, nil
 }
 
-func (b *BusinessLogic) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*broker.ProvisionResponse, error) {
+func (b *HelmBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*broker.ProvisionResponse, error) {
 	// Your provision business logic goes here
 
 	// example implementation:
@@ -121,7 +126,7 @@ func (b *BusinessLogic) Provision(request *osb.ProvisionRequest, c *broker.Reque
 			// Instance ID in use, this is a conflict.
 			description := "InstanceID in use"
 			return nil, osb.HTTPStatusCodeError{
-				StatusCode: http.StatusConflict,
+				StatusCode:  http.StatusConflict,
 				Description: &description,
 			}
 		}
@@ -135,7 +140,7 @@ func (b *BusinessLogic) Provision(request *osb.ProvisionRequest, c *broker.Reque
 	return &response, nil
 }
 
-func (b *BusinessLogic) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*broker.DeprovisionResponse, error) {
+func (b *HelmBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*broker.DeprovisionResponse, error) {
 	// Your deprovision business logic goes here
 
 	// example implementation:
@@ -153,13 +158,13 @@ func (b *BusinessLogic) Deprovision(request *osb.DeprovisionRequest, c *broker.R
 	return &response, nil
 }
 
-func (b *BusinessLogic) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*broker.LastOperationResponse, error) {
+func (b *HelmBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*broker.LastOperationResponse, error) {
 	// Your last-operation business logic goes here
 
 	return nil, nil
 }
 
-func (b *BusinessLogic) Bind(request *osb.BindRequest, c *broker.RequestContext) (*broker.BindResponse, error) {
+func (b *HelmBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*broker.BindResponse, error) {
 	// Your bind business logic goes here
 
 	// example implementation:
@@ -185,12 +190,12 @@ func (b *BusinessLogic) Bind(request *osb.BindRequest, c *broker.RequestContext)
 	return &response, nil
 }
 
-func (b *BusinessLogic) Unbind(request *osb.UnbindRequest, c *broker.RequestContext) (*broker.UnbindResponse, error) {
+func (b *HelmBroker) Unbind(request *osb.UnbindRequest, c *broker.RequestContext) (*broker.UnbindResponse, error) {
 	// Your unbind business logic goes here
 	return &broker.UnbindResponse{}, nil
 }
 
-func (b *BusinessLogic) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*broker.UpdateInstanceResponse, error) {
+func (b *HelmBroker) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*broker.UpdateInstanceResponse, error) {
 	// Your logic for updating a service goes here.
 	response := broker.UpdateInstanceResponse{}
 	if request.AcceptsIncomplete {
@@ -200,7 +205,7 @@ func (b *BusinessLogic) Update(request *osb.UpdateInstanceRequest, c *broker.Req
 	return &response, nil
 }
 
-func (b *BusinessLogic) ValidateBrokerAPIVersion(version string) error {
+func (b *HelmBroker) ValidateBrokerAPIVersion(version string) error {
 	return nil
 }
 

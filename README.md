@@ -39,19 +39,19 @@ deploy and begin iterating on.
 ### Get the project
 
 ```console
-$ go get github.com/pmorie/osb-starter-pack/cmd/servicebroker
+$ go get github.com/huangjiuyuan/helm-broker/cmd/servicebroker
 ```
 
 Or clone the repo:
 
 ```console
-$ cd $GOPATH/src && mkdir -p github.com/pmorie && cd github.com/pmorie && git clone git://github.com/pmorie/osb-starter-pack
+$ cd $GOPATH/src && mkdir -p github.com/pmorie && cd github.com/pmorie && git clone git://github.com/huangjiuyuan/helm-broker
 ```
 
 Change into the project directory:
 
 ```console
-$ cd $GOPATH/src/github.com/pmorie/osb-starter-pack
+$ cd $GOPATH/src/github.com/huangjiuyuan/helm-broker
 ```
 
 ### Deploy broker using Helm
