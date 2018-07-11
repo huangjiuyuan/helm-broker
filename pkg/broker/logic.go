@@ -22,6 +22,7 @@ func NewHelmBroker(o Options) (*HelmBroker, error) {
 	return &HelmBroker{
 		async:     o.Async,
 		instances: make(map[string]*exampleInstance, 10),
+		client:    helm.NewClient("192.168.99.100:30400", "$HOME/.helm"),
 	}, nil
 }
 
@@ -33,14 +34,15 @@ type HelmBroker struct {
 	sync.RWMutex
 	// Add fields here! These fields are provided purely as an example
 	instances map[string]*exampleInstance
+	// Helm client.
+	client *helm.Client
 }
 
 var _ broker.Interface = &HelmBroker{}
 
 // GetCatalog encapsulates the business logic for returning the broker's catalog of services.
 func (b *HelmBroker) GetCatalog(c *broker.RequestContext) (*broker.CatalogResponse, error) {
-	hc := helm.NewClient(":44134", "$HOME/.helm")
-	releases, err := hc.SearchReleases()
+	releases, err := b.client.SearchReleases()
 	if err != nil {
 		glog.Errorf("failed to get releases from Chart repositories")
 	}
@@ -49,8 +51,8 @@ func (b *HelmBroker) GetCatalog(c *broker.RequestContext) (*broker.CatalogRespon
 	services := make([]osb.Service, len(releases), len(releases))
 	for idx, release := range releases {
 		service := osb.Service{
-			Name:        release.Name,
-			ID:          release.Chart.Digest,
+			Name:        release.Chart.Name,
+			ID:          release.Name,
 			Description: release.Chart.Description,
 			Bindable:    true,
 			Metadata: map[string]interface{}{
@@ -69,11 +71,15 @@ func (b *HelmBroker) GetCatalog(c *broker.RequestContext) (*broker.CatalogRespon
 				"deprecated":    release.Chart.Deprecated,
 				"tillerVersion": release.Chart.TillerVersion,
 				"annotations":   release.Chart.Annotations,
+				"urls":          release.Chart.URLs,
+				"created":       release.Chart.Created,
+				"removed":       release.Chart.Removed,
+				"digest":        release.Chart.Digest,
 			},
 			Plans: []osb.Plan{
 				{
 					Name:        "default",
-					ID:          "0",
+					ID:          "",
 					Description: fmt.Sprintf("The default plan for %s service.", release.Chart.Name),
 					Free:        func() *bool { b := true; return &b }(),
 					Schemas: &osb.Schemas{
@@ -101,41 +107,26 @@ func (b *HelmBroker) GetCatalog(c *broker.RequestContext) (*broker.CatalogRespon
 	return response, nil
 }
 
+// Provision encapsulates the business logic for a provision operation and returns a osb.ProvisionResponse
+// or an error.
 func (b *HelmBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*broker.ProvisionResponse, error) {
-	// Your provision business logic goes here
-
-	// example implementation:
-	b.Lock()
-	defer b.Unlock()
-
-	response := broker.ProvisionResponse{}
-
-	exampleInstance := &exampleInstance{
-		ID:        request.InstanceID,
-		ServiceID: request.ServiceID,
-		PlanID:    request.PlanID,
-		Params:    request.Parameters,
+	resp, err := b.client.InstallRelease(request.ServiceID, "", "")
+	if err != nil {
+		return nil, err
 	}
 
-	// Check to see if this is the same instance
-	if i := b.instances[request.InstanceID]; i != nil {
-		if i.Match(exampleInstance) {
-			response.Exists = true
-			return &response, nil
-		} else {
-			// Instance ID in use, this is a conflict.
-			description := "InstanceID in use"
-			return nil, osb.HTTPStatusCodeError{
-				StatusCode:  http.StatusConflict,
-				Description: &description,
-			}
-		}
+	response := broker.ProvisionResponse{
+		ProvisionResponse: osb.ProvisionResponse{
+			DashboardURL: func() *string { s := ""; return &s }(),
+			OperationKey: nil,
+		},
 	}
-	b.instances[request.InstanceID] = exampleInstance
-
 	if request.AcceptsIncomplete {
 		response.Async = b.async
 	}
+	release := resp.GetRelease()
+	glog.Infof("service response: %#+v.", response)
+	glog.Infof("release %s installed from chart %s.", release.Name, release.Chart.Metadata.Name)
 
 	return &response, nil
 }

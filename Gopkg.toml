@@ -40,3 +40,7 @@
 [[constraint]]
   name = "github.com/shawn-hurley/osb-broker-k8s-lib"
   version = "0.0.3"
+
+[[constraint]]
+  name = "k8s.io/helm"
+  version = "2.9.1"
