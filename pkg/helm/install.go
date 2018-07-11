@@ -1,8 +1,6 @@
 package helm
 
 import (
-	"fmt"
-
 	"k8s.io/helm/pkg/helm"
 	"k8s.io/helm/pkg/proto/hapi/services"
 )
@@ -15,7 +13,6 @@ func (c *Client) InstallRelease(chart string, namespace string, name string) (*s
 		helm.ReleaseName(name),
 		helm.InstallTimeout(300),
 	)
-	fmt.Printf("%#v\n", err)
 	if err != nil {
 		return nil, prettyError(err)
 	}

@@ -107,8 +107,7 @@ func (b *HelmBroker) GetCatalog(c *broker.RequestContext) (*broker.CatalogRespon
 	return response, nil
 }
 
-// Provision encapsulates the business logic for a provision operation and returns a osb.ProvisionResponse
-// or an error.
+// Provision encapsulates the business logic for a provision operation and returns a osb.ProvisionResponse or an error.
 func (b *HelmBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*broker.ProvisionResponse, error) {
 	resp, err := b.client.InstallRelease(request.ServiceID, "", "")
 	if err != nil {
@@ -125,26 +124,30 @@ func (b *HelmBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestC
 		response.Async = b.async
 	}
 	release := resp.GetRelease()
-	glog.Infof("service response: %#+v.", response)
+	glog.Infof("provision response: %#+v.", response)
 	glog.Infof("release %s installed from chart %s.", release.Name, release.Chart.Metadata.Name)
 
 	return &response, nil
 }
 
+// Deprovision encapsulates the business logic for a deprovision operation and returns a osb.DeprovisionResponse or an error.
 func (b *HelmBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*broker.DeprovisionResponse, error) {
-	// Your deprovision business logic goes here
+	resp, err := b.client.DeleteRelease(request.InstanceID)
+	if err != nil {
+		return nil, err
+	}
 
-	// example implementation:
-	b.Lock()
-	defer b.Unlock()
-
-	response := broker.DeprovisionResponse{}
-
-	delete(b.instances, request.InstanceID)
-
+	response := broker.DeprovisionResponse{
+		DeprovisionResponse: osb.DeprovisionResponse{
+			OperationKey: nil,
+		},
+	}
 	if request.AcceptsIncomplete {
 		response.Async = b.async
 	}
+	release := resp.GetRelease()
+	glog.Infof("deprovision response: %#+v.", response)
+	glog.Infof("release %s from chart %s uninstalled", release.Name, release.Chart.Metadata.Name)
 
 	return &response, nil
 }
