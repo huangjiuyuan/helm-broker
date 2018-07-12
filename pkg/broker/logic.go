@@ -152,10 +152,21 @@ func (b *HelmBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.Requ
 	return &response, nil
 }
 
+// LastOperation encapsulates the business logic for a last operation request and returns a osb.LastOperationResponse or an error.
 func (b *HelmBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*broker.LastOperationResponse, error) {
-	// Your last-operation business logic goes here
+	resp, err := b.client.ReleaseStatus(request.InstanceID)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, nil
+	state := getReleaseStatusCode(resp)
+	response := broker.LastOperationResponse{
+		LastOperationResponse: osb.LastOperationResponse{
+			State: state,
+		},
+	}
+
+	return &response, nil
 }
 
 func (b *HelmBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*broker.BindResponse, error) {
