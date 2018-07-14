@@ -2,8 +2,6 @@ package broker
 
 import (
 	"fmt"
-	"net/http"
-	"reflect"
 	"sync"
 
 	"github.com/golang/glog"
@@ -20,9 +18,8 @@ func NewHelmBroker(o Options) (*HelmBroker, error) {
 	// line, you would unpack it from the Options and set it on the
 	// HelmBroker here.
 	return &HelmBroker{
-		async:     o.Async,
-		instances: make(map[string]*exampleInstance, 10),
-		client:    helm.NewClient("192.168.99.100:30400", "$HOME/.helm"),
+		async:  o.Async,
+		client: helm.NewClient("192.168.99.100:30400", "$HOME/.helm"),
 	}, nil
 }
 
@@ -32,8 +29,6 @@ type HelmBroker struct {
 	async bool
 	// Synchronize go routines.
 	sync.RWMutex
-	// Add fields here! These fields are provided purely as an example
-	instances map[string]*exampleInstance
 	// Helm client.
 	client *helm.Client
 }
@@ -169,23 +164,11 @@ func (b *HelmBroker) LastOperation(request *osb.LastOperationRequest, c *broker.
 	return &response, nil
 }
 
+// Bind encapsulates the business logic for a bind operation and returns a osb.BindResponse or an error.
 func (b *HelmBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*broker.BindResponse, error) {
-	// Your bind business logic goes here
-
-	// example implementation:
-	b.Lock()
-	defer b.Unlock()
-
-	instance, ok := b.instances[request.InstanceID]
-	if !ok {
-		return nil, osb.HTTPStatusCodeError{
-			StatusCode: http.StatusNotFound,
-		}
-	}
-
 	response := broker.BindResponse{
 		BindResponse: osb.BindResponse{
-			Credentials: instance.Params,
+			Credentials: nil,
 		},
 	}
 	if request.AcceptsIncomplete {
@@ -195,35 +178,30 @@ func (b *HelmBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*
 	return &response, nil
 }
 
+// Unbind encapsulates the business logic for an unbind operation and returns a osb.UnbindResponse or an error.
 func (b *HelmBroker) Unbind(request *osb.UnbindRequest, c *broker.RequestContext) (*broker.UnbindResponse, error) {
-	// Your unbind business logic goes here
 	return &broker.UnbindResponse{}, nil
 }
 
+// Update encapsulates the business logic for an update operation and returns a osb.UpdateInstanceResponse or an error.
 func (b *HelmBroker) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*broker.UpdateInstanceResponse, error) {
-	// Your logic for updating a service goes here.
+	resp, err := b.client.UpdateRelease(request.InstanceID, request.ServiceID)
+	if err != nil {
+		return nil, err
+	}
+
 	response := broker.UpdateInstanceResponse{}
 	if request.AcceptsIncomplete {
 		response.Async = b.async
 	}
+	release := resp.GetRelease()
+	glog.Infof("update response: %#+v.", response)
+	glog.Infof("release %s from chart %s updated", release.Name, release.Chart.Metadata.Name)
 
 	return &response, nil
 }
 
+// ValidateBrokerAPIVersion encapsulates the business logic of validating the OSB API version sent to the broker with every request and returns an error.
 func (b *HelmBroker) ValidateBrokerAPIVersion(version string) error {
 	return nil
-}
-
-// example types
-
-// exampleInstance is intended as an example of a type that holds information about a service instance
-type exampleInstance struct {
-	ID        string
-	ServiceID string
-	PlanID    string
-	Params    map[string]interface{}
-}
-
-func (i *exampleInstance) Match(other *exampleInstance) bool {
-	return reflect.DeepEqual(i, other)
 }
