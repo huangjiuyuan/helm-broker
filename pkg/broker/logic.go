@@ -1,7 +1,6 @@
 package broker
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/golang/glog"
@@ -18,8 +17,9 @@ func NewHelmBroker(o Options) (*HelmBroker, error) {
 	// line, you would unpack it from the Options and set it on the
 	// HelmBroker here.
 	return &HelmBroker{
-		async:  o.Async,
-		client: helm.NewClient("192.168.99.100:30400", "$HOME/.helm"),
+		async:   o.Async,
+		client:  helm.NewClient("192.168.99.100:30400", "$HOME/.helm"),
+		version: "2.13",
 	}, nil
 }
 
@@ -31,6 +31,8 @@ type HelmBroker struct {
 	sync.RWMutex
 	// Helm client.
 	client *helm.Client
+	// API version for broker.
+	version string
 }
 
 var _ broker.Interface = &HelmBroker{}
@@ -49,7 +51,7 @@ func (b *HelmBroker) GetCatalog(c *broker.RequestContext) (*broker.CatalogRespon
 			Name:        release.Chart.Name,
 			ID:          release.Name,
 			Description: release.Chart.Description,
-			Bindable:    true,
+			Bindable:    false,
 			Metadata: map[string]interface{}{
 				"name":          release.Chart.Name,
 				"home":          release.Chart.Home,
@@ -59,6 +61,7 @@ func (b *HelmBroker) GetCatalog(c *broker.RequestContext) (*broker.CatalogRespon
 				"keywords":      release.Chart.Keywords,
 				"maintainers":   release.Chart.Maintainers,
 				"engine":        release.Chart.Engine,
+				"icon":          release.Chart.Icon,
 				"apiVersion":    release.Chart.ApiVersion,
 				"condition":     release.Chart.Condition,
 				"tags":          release.Chart.Tags,
@@ -66,28 +69,11 @@ func (b *HelmBroker) GetCatalog(c *broker.RequestContext) (*broker.CatalogRespon
 				"deprecated":    release.Chart.Deprecated,
 				"tillerVersion": release.Chart.TillerVersion,
 				"annotations":   release.Chart.Annotations,
+				"kubeVersion":   release.Chart.KubeVersion,
 				"urls":          release.Chart.URLs,
 				"created":       release.Chart.Created,
 				"removed":       release.Chart.Removed,
 				"digest":        release.Chart.Digest,
-			},
-			Plans: []osb.Plan{
-				{
-					Name:        "default",
-					ID:          "",
-					Description: fmt.Sprintf("The default plan for %s service.", release.Chart.Name),
-					Free:        func() *bool { b := true; return &b }(),
-					Schemas: &osb.Schemas{
-						ServiceInstance: &osb.ServiceInstanceSchema{
-							Create: &osb.InputParametersSchema{
-								Parameters: map[string]string{
-									"name":    release.Name,
-									"version": release.Chart.Version,
-								},
-							},
-						},
-					},
-				},
 			},
 		}
 		services[idx] = service
@@ -104,7 +90,7 @@ func (b *HelmBroker) GetCatalog(c *broker.RequestContext) (*broker.CatalogRespon
 
 // Provision encapsulates the business logic for a provision operation and returns a osb.ProvisionResponse or an error.
 func (b *HelmBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*broker.ProvisionResponse, error) {
-	resp, err := b.client.InstallRelease(request.ServiceID, "", "")
+	resp, err := b.client.InstallRelease(request.ServiceID, "", "", request.Parameters)
 	if err != nil {
 		return nil, err
 	}
