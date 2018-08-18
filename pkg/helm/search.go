@@ -9,7 +9,7 @@ import (
 
 // SearchReleases searches releases from all repositories.
 func (c *Client) SearchReleases() ([]*search.Result, error) {
-	index, err := buildIndex(c.home)
+	index, err := buildIndex(c.settings.Home)
 	if err != nil {
 		return nil, err
 	}

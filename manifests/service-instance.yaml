@@ -1,11 +1,14 @@
 apiVersion: servicecatalog.k8s.io/v1beta1
 kind: ServiceInstance
 metadata:
-  name: example-starter-pack-service
-  namespace: test-ns
+  name: redis-service
+  namespace: default
 spec:
-  clusterServiceClassExternalName: example-starter-pack-service
-  clusterServicePlanExternalName: default
+  clusterServiceClassExternalName: stable.redis
   parameters:
-    param-1: value-1
-    param-2: value-2
+    "cluster.slaveCount": "1"
+    "master.persistence.storageClass": "standard"
+    "master.resources.requests.cpu": "100m"
+    "master.resources.requests.memory": "128Mi"
+    "slave.resources.requests.cpu": "100m"
+    "slave.resources.requests.memory": "128Mi"

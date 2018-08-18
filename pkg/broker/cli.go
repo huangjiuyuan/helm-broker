@@ -10,6 +10,8 @@ import (
 type Options struct {
 	CatalogPath string
 	Async       bool
+	TillerHost  string
+	HelmHome    string
 }
 
 // AddFlags is a hook called to initialize the CLI flags for broker options.
@@ -18,4 +20,6 @@ type Options struct {
 func AddFlags(o *Options) {
 	flag.StringVar(&o.CatalogPath, "catalogPath", "", "The path to the catalog")
 	flag.BoolVar(&o.Async, "async", false, "Indicates whether the broker is handling the requests asynchronously.")
+	flag.StringVar(&o.TillerHost, "tillerHost", "", "The host and port of Tiller")
+	flag.StringVar(&o.HelmHome, "helmHome", "", "The local path to the Helm home directory")
 }

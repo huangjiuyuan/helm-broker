@@ -9,24 +9,21 @@ import (
 	"k8s.io/helm/pkg/helm/helmpath"
 )
 
-// Client manages client side of Helm.
+// Client manages client side of helm.
 type Client struct {
-	// home specifies the path of Helm.
-	home helmpath.Home
-	// client for Helm.
+	// client for helm.
 	client helm.Interface
 	// settings describes all of the environment settings.
 	settings environment.EnvSettings
 }
 
-// NewClient creates a new Helm client.
-func NewClient(host string, home helmpath.Home) *Client {
+// NewClient creates a new helm client.
+func NewClient(host string, home string) *Client {
 	cli := &Client{
-		home:   home,
 		client: helm.NewClient(helm.Host(host)),
 		settings: environment.EnvSettings{
 			TillerHost: host,
-			Home:       home,
+			Home:       helmpath.Home(home),
 		},
 	}
 
