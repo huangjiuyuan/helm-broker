@@ -176,12 +176,6 @@ func (b *HelmBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestC
 		return nil, fmt.Errorf("failed to get name for instance %s", request.InstanceID)
 	}
 
-	// Install helm release.
-	resp, err := b.helmClient.InstallRelease(chart, namespace, name, request.Parameters)
-	if err != nil {
-		return nil, err
-	}
-
 	response := broker.ProvisionResponse{
 		ProvisionResponse: osb.ProvisionResponse{
 			DashboardURL: func() *string { s := ""; return &s }(),
@@ -191,6 +185,13 @@ func (b *HelmBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestC
 	if request.AcceptsIncomplete {
 		response.Async = b.async
 	}
+
+	// Install helm release.
+	resp, err := b.helmClient.InstallRelease(chart, namespace, name, request.Parameters)
+	if err != nil {
+		return nil, err
+	}
+
 	release := resp.GetRelease()
 	glog.Infof("provision response: %#+v.", response)
 	glog.Infof("release %s installed from chart %s.", release.Name, release.Chart.Metadata.Name)
@@ -217,11 +218,6 @@ func (b *HelmBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.Requ
 		return nil, fmt.Errorf("failed to get name for instance %s", request.InstanceID)
 	}
 
-	resp, err := b.helmClient.DeleteRelease(name)
-	if err != nil {
-		return nil, err
-	}
-
 	response := broker.DeprovisionResponse{
 		DeprovisionResponse: osb.DeprovisionResponse{
 			OperationKey: nil,
@@ -230,6 +226,15 @@ func (b *HelmBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.Requ
 	if request.AcceptsIncomplete {
 		response.Async = b.async
 	}
+
+	resp, err := b.helmClient.DeleteRelease(name)
+	if err != nil {
+		if isReleaseNotFoundError(name, err) {
+			return &response, nil
+		}
+		return nil, err
+	}
+
 	release := resp.GetRelease()
 	glog.Infof("deprovision response: %#+v.", response)
 	glog.Infof("release %s from chart %s uninstalled", release.Name, release.Chart.Metadata.Name)

@@ -55,3 +55,8 @@ func getChartName(name string) (string, error) {
 	chart := r.Replace(name)
 	return chart, nil
 }
+
+// isReleaseNotFoundError returns true if the error is a not found error for a specific release.
+func isReleaseNotFoundError(release string, err error) bool {
+	return fmt.Sprintf("release: %q not found", release) == err.Error()
+}
