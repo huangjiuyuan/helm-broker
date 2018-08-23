@@ -280,15 +280,53 @@ func (b *HelmBroker) Unbind(request *osb.UnbindRequest, c *broker.RequestContext
 
 // Update encapsulates the business logic for an update operation and returns a osb.UpdateInstanceResponse or an error.
 func (b *HelmBroker) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*broker.UpdateInstanceResponse, error) {
-	resp, err := b.helmClient.UpdateRelease(request.InstanceID, request.ServiceID)
+	// Get service class for update request.
+	class, err := b.svcatClient.ServicecatalogV1beta1().ClusterServiceClasses().Get(request.ServiceID, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	response := broker.UpdateInstanceResponse{}
+	chart, err := getChartName(class.Spec.ExternalName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chart name for service %s: %v", request.ServiceID, err)
+	}
+
+	namespace, ok := request.Context["namespace"].(string)
+	if !ok {
+		return nil, fmt.Errorf("failed to get namespace for instance %s", request.InstanceID)
+	}
+
+	// Get instance for update request.
+	instanceList, err := b.svcatClient.ServicecatalogV1beta1().ServiceInstances(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	var name string
+	for _, instance := range instanceList.Items {
+		if instance.Spec.ExternalID == request.InstanceID {
+			name = instance.Name
+			break
+		}
+	}
+	if name == "" {
+		return nil, fmt.Errorf("failed to get name for instance %s", request.InstanceID)
+	}
+
+	response := broker.UpdateInstanceResponse{
+		UpdateInstanceResponse: osb.UpdateInstanceResponse{
+			OperationKey: nil,
+		},
+	}
 	if request.AcceptsIncomplete {
 		response.Async = b.async
 	}
+
+	resp, err := b.helmClient.UpdateRelease(chart, name, request.Parameters)
+	if err != nil {
+		return nil, err
+	}
+
 	release := resp.GetRelease()
 	glog.Infof("update response: %#+v.", response)
 	glog.Infof("release %s from chart %s updated", release.Name, release.Chart.Metadata.Name)

@@ -6,9 +6,9 @@ metadata:
 spec:
   clusterServiceClassExternalName: stable.redis
   parameters:
-    "cluster.slaveCount": "1"
-    "master.persistence.storageClass": "standard"
-    "master.resources.requests.cpu": "100m"
-    "master.resources.requests.memory": "128Mi"
-    "slave.resources.requests.cpu": "100m"
-    "slave.resources.requests.memory": "128Mi"
+    cluster.slaveCount: 2
+    master.persistence.storageClass: standard
+    master.resources.requests.cpu: 100m
+    master.resources.requests.memory: 128Mi
+    slave.resources.requests.cpu: 100m
+    slave.resources.requests.memory: 128Mi

@@ -36,7 +36,7 @@ func (c *Client) InstallRelease(chart string, namespace string, name string, val
 
 	resp, err := c.client.InstallReleaseFromChart(
 		chartRequested,
-		"default",
+		namespace,
 		helm.ReleaseName(name),
 		helm.ValueOverrides(rawValues),
 		helm.InstallTimeout(300),
